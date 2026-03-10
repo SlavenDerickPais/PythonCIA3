@@ -81,11 +81,16 @@ if uploaded_file:
         st.error("🚨 Significant disease detected")
 
     # Download result
-    result_image = Image.fromarray(highlighted)
+    import io
 
-    st.download_button(
-        label="⬇ Download Highlighted Result",
-        data=result_image.tobytes(),
-        file_name="disease_result.png",
-        mime="image/png"
-    )
+# Convert result image to PNG buffer
+buf = io.BytesIO()
+result_image.save(buf, format="PNG")
+byte_im = buf.getvalue()
+
+st.download_button(
+    label="⬇ Download Highlighted Result",
+    data=byte_im,
+    file_name="disease_result.png",
+    mime="image/png"
+)
