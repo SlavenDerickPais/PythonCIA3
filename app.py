@@ -3,55 +3,89 @@ import cv2
 import numpy as np
 from PIL import Image
 
-st.set_page_config(page_title="Leaf Health Checker", page_icon="🍃")
-st.title("🌿 Simple Leaf Disease Detector")
-st.write("Using Basic HSV Color Thresholding")
+st.set_page_config(page_title="Leaf Health Checker", page_icon="🍃", layout="wide")
 
-uploaded_file = st.file_uploader("Upload a leaf image...", type=["jpg", "jpeg", "png"])
+st.title("🌿 Leaf Disease Detector")
+st.markdown("Upload a **leaf image** and detect potential disease spots using HSV color segmentation.")
+
+# Sidebar Controls
+st.sidebar.header("⚙ Detection Settings")
+
+lower_h = st.sidebar.slider("Lower Hue", 0, 179, 10)
+upper_h = st.sidebar.slider("Upper Hue", 0, 179, 30)
+
+lower_s = st.sidebar.slider("Lower Saturation", 0, 255, 50)
+upper_s = st.sidebar.slider("Upper Saturation", 0, 255, 255)
+
+lower_v = st.sidebar.slider("Lower Value", 0, 255, 50)
+upper_v = st.sidebar.slider("Upper Value", 0, 255, 255)
+
+uploaded_file = st.file_uploader("📤 Upload a Leaf Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    # --- 1. Load Image ---
+
     image = Image.open(uploaded_file)
     img = np.array(image)
     img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-    # --- 2. Process for Detection ---
-    # Blur to reduce noise
+    # Blur
     blurred = cv2.GaussianBlur(img_bgr, (5, 5), 0)
+
+    # HSV
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-    # Define color ranges for "Diseased" spots (Brown/Yellow)
-    # Adjust these values if your specific leaves are different!
-    lower_disease = np.array([10, 50, 50])   # Lower Hue for Brown/Yellow
-    upper_disease = np.array([30, 255, 255]) # Upper Hue for Brown/Yellow
+    lower_disease = np.array([lower_h, lower_s, lower_v])
+    upper_disease = np.array([upper_h, upper_s, upper_v])
 
-    # Create the Threshold Mask
     mask = cv2.inRange(hsv, lower_disease, upper_disease)
 
-    # Clean up the mask (remove tiny dots)
     kernel = np.ones((5,5), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-    # --- 3. UI Display ---
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Original Image")
-        st.image(image, use_container_width=True)
-    
-    with col2:
-        st.subheader("Disease Segmentation")
-        # Display the black/white threshold mask
-        st.image(mask, caption="White = Detected Spots", use_container_width=True)
+    # Highlight detected disease
+    highlighted = img.copy()
+    highlighted[mask > 0] = [255, 0, 0]  # Red spots
 
-    # --- 4. Calculation ---
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.subheader("Original Leaf")
+        st.image(image, use_container_width=True)
+
+    with col2:
+        st.subheader("Disease Mask")
+        st.image(mask, caption="White = Suspected Disease", use_container_width=True)
+
+    with col3:
+        st.subheader("Highlighted Disease")
+        st.image(highlighted, use_container_width=True)
+
+    # Severity calculation
     disease_pixels = cv2.countNonZero(mask)
     total_pixels = mask.shape[0] * mask.shape[1]
     severity = (disease_pixels / total_pixels) * 100
 
     st.divider()
+
+    st.subheader("📊 Infection Analysis")
+
     st.metric("Estimated Infection Severity", f"{severity:.2f}%")
 
-    if severity > 5:
-        st.error(" Potential disease detected. Action may be required.")
+    st.progress(int(severity))
+
+    if severity < 3:
+        st.success("🌱 Leaf looks healthy")
+    elif severity < 8:
+        st.warning("⚠ Mild infection detected")
     else:
-        st.success(" Leaf looks healthy!")
+        st.error("🚨 Significant disease detected")
+
+    # Download result
+    result_image = Image.fromarray(highlighted)
+
+    st.download_button(
+        label="⬇ Download Highlighted Result",
+        data=result_image.tobytes(),
+        file_name="disease_result.png",
+        mime="image/png"
+    )
