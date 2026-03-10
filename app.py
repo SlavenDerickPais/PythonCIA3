@@ -1,5 +1,6 @@
 import streamlit as st
 import cv2
+import io
 import numpy as np
 from PIL import Image
 
@@ -9,7 +10,7 @@ st.title("🌿 Leaf Disease Detector")
 st.markdown("Upload a **leaf image** and detect potential disease spots using HSV color segmentation.")
 
 # Sidebar Controls
-st.sidebar.header("⚙ Detection Settings")
+st.sidebar.header("Detection Settings")
 
 lower_h = st.sidebar.slider("Lower Hue", 0, 179, 10)
 upper_h = st.sidebar.slider("Upper Hue", 0, 179, 30)
@@ -28,10 +29,7 @@ if uploaded_file:
     img = np.array(image)
     img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-    # Blur
     blurred = cv2.GaussianBlur(img_bgr, (5, 5), 0)
-
-    # HSV
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
     lower_disease = np.array([lower_h, lower_s, lower_v])
@@ -42,9 +40,8 @@ if uploaded_file:
     kernel = np.ones((5,5), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-    # Highlight detected disease
     highlighted = img.copy()
-    highlighted[mask > 0] = [255, 0, 0]  # Red spots
+    highlighted[mask > 0] = [255, 0, 0]
 
     col1, col2, col3 = st.columns(3)
 
@@ -60,7 +57,6 @@ if uploaded_file:
         st.subheader("Highlighted Disease")
         st.image(highlighted, use_container_width=True)
 
-    # Severity calculation
     disease_pixels = cv2.countNonZero(mask)
     total_pixels = mask.shape[0] * mask.shape[1]
     severity = (disease_pixels / total_pixels) * 100
@@ -70,7 +66,6 @@ if uploaded_file:
     st.subheader("📊 Infection Analysis")
 
     st.metric("Estimated Infection Severity", f"{severity:.2f}%")
-
     st.progress(int(severity))
 
     if severity < 3:
@@ -80,17 +75,15 @@ if uploaded_file:
     else:
         st.error("🚨 Significant disease detected")
 
-    # Download result
-    import io
+    # ✅ Convert result image for download
+    result_image = Image.fromarray(highlighted)
 
-# Convert result image to PNG buffer
-buf = io.BytesIO()
-result_image.save(buf, format="PNG")
-byte_im = buf.getvalue()
+    buf = io.BytesIO()
+    result_image.save(buf, format="PNG")
 
-st.download_button(
-    label="⬇ Download Highlighted Result",
-    data=byte_im,
-    file_name="disease_result.png",
-    mime="image/png"
-)
+    st.download_button(
+        label="⬇ Download Highlighted Result",
+        data=buf.getvalue(),
+        file_name="disease_result.png",
+        mime="image/png"
+    )
